@@ -1,14 +1,32 @@
 #include <stdio.h>
 #include <stdlib.h>
+// #include <gst/app/gstappsink.h>
 
 #define GLFW_INCLUDE_ES2
 #include <GLFW/glfw3.h>
 
+#include <gst/gst.h>
 // #include "GLES2/gl2.h"
 // #include "GLES2/gl2ext.h"
 // #include "EGL/egl.h"
 // #include "FSL/fsl_egl.h"
 // #include "FSL/fslutil.h"
+
+/** Globally used data **/
+typedef struct _ApplicationData {
+    GMainLoop *loop;
+    GstBuffer *buffer;
+    GStaticRWLock rwlock;
+    int width;
+    int height;
+    unsigned int texture_id;
+} ApplicationData;
+
+static void
+handoff_handler (GstElement *fakesink,
+                 GstBuffer  *buffer,
+                 GstPad     *pad,
+                 gpointer    data);
 
 static const GLchar* vertex_shader_source =
 "uniform   mat4 g_matModelView;				\n"
@@ -108,24 +126,45 @@ GLint common_get_shader_program(const char *vertex_shader_source, const char *fr
     glDeleteShader(fragment_shader);
     return shader_program;
 }
+GstMapInfo map; 
 
-void draw(float w, float h) {
+static void draw(float w, float h, ApplicationData *app) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, w, h);
     
-    unsigned char texDat[(int)(w*h)];
-    int i;
-    for (i = 0; i < (int)256*256; ++i)
-        texDat[i] = ((i/(int)256)%2==0 ? 0: 255);
+    // unsigned char texDat[(int)(w*h)];
+    // int i;
+    // for (i = 0; i < (int)256*256; ++i)
+    //     texDat[i] = i%600;//((i/(int)256)%2==0 ? 0: 255)
     glGenTextures(1, texture);
     glBindTexture(GL_TEXTURE_2D, *texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_REPEAT);
+    // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
 
+    // glClearColor (0.0, 0.0, 0.0, 0.0);
+  
+    // glGenTextures (1, &app->texture_id);
+    // glBindTexture (GL_TEXTURE_2D, app->texture_id);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    // g_static_rw_lock_reader_lock (&app->rwlock);
+    if (gst_buffer_map (app->buffer, &map, GST_MAP_READ)) { 
+        // gst_util_dump_mem (map.data, map.size);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                    app->width, app->height, 0,
+                    GL_RGB, GL_UNSIGNED_BYTE, map.data );
+        gst_buffer_unmap (app->buffer, &map); 
+    }
+    // g_static_rw_lock_reader_unlock (&app->rwlock);
+    // glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
     glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
 	glEnableVertexAttribArray( g_hVertexLoc );
     glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
@@ -140,13 +179,155 @@ void draw(float w, float h) {
 
 }
 
-int main(void) {
+/** GStreamer related ****************************************/
+static gboolean
+bus_handler (GstBus     *bus,
+             GstMessage *msg,
+             gpointer    data)
+{
+    GMainLoop *loop = (GMainLoop *)data;
+
+    switch (GST_MESSAGE_TYPE (msg)) {
+        case GST_MESSAGE_ERROR: {
+            gchar  *debug;
+            GError *error;
+
+            gst_message_parse_error (msg, &error, &debug);
+            // g_printerr ("Error: %s\n", error->message);
+            g_printerr ("Error received from element %s: %s\n", GST_OBJECT_NAME (msg->src), error->message);
+            g_printerr ("Debugging information: %s\n", debug ? debug : "none");
+            g_free (debug);
+            g_error_free (error);
+
+            g_main_loop_quit (loop);
+            break;
+        }
+        case GST_MESSAGE_STATE_CHANGED:
+            /* We are only interested in state-changed messages from the pipeline */
+            g_print ("Pipeline state changed ");
+        break;
+        default:
+            break;
+    }
+
+    return TRUE;
+}
+
+static void
+handoff_handler (GstElement *fakesink,
+                 GstBuffer  *buffer,
+                 GstPad     *pad,
+                 gpointer    data)
+{
+    ApplicationData *app = (ApplicationData *)data;
+
+    // g_static_rw_lock_writer_lock (&app->rwlock);
+    /* Clean up previous reference */
+    if (app->buffer != NULL) {
+        gst_buffer_unref (app->buffer);
+        app->buffer = NULL;
+    }
+    /* Refer upcoming buffer */
+    app->buffer = gst_buffer_ref (buffer);
+    // g_static_rw_lock_writer_unlock (&app->rwlock);
+
+    return;
+}
+
+
+static GstElement *
+create_pipeline (ApplicationData *app)
+{
+    GstElement *pipeline, *source, *csp, *filter, *sink;
+    GstBus *bus;
+    GstPad *pad;
+    GstCaps *caps;
+    GstStructure *structure;
+    GstStateChangeReturn ret;
+
+    /* Create gstreamer elements */
+    pipeline = gst_pipeline_new ("pipeline"); // pipeline
+    source   = gst_element_factory_make ("videotestsrc",     "source");
+    csp      = gst_element_factory_make ("videoconvert", "csp");
+    filter   = gst_element_factory_make ("capsfilter",       "filter");
+    sink     = gst_element_factory_make ("fakesink",         "fakesink");
+    if (!pipeline || !source || !csp || !filter || !sink) {
+        g_printerr ("One element could not be created. Exiting.\n");
+        return NULL;
+    }
+
+    /* we set a property of elements */
+    g_object_set (G_OBJECT (sink), "sync", TRUE, NULL);
+    g_object_set (G_OBJECT (sink), "signal-handoffs", TRUE, NULL);
+    g_signal_connect (G_OBJECT (sink), "handoff",
+                        G_CALLBACK(handoff_handler), app);
+    caps = gst_caps_new_simple ("video/x-raw",
+                                "format", G_TYPE_STRING, "I420",
+                                // "format", G_TYPE_STRING, "RGB16",
+                                // "bpp", G_TYPE_INT, 24,
+                                // "depth", G_TYPE_INT, 24,
+                                NULL);
+    g_object_set (G_OBJECT(filter), "caps", caps, NULL);
+    gst_caps_unref(caps);
+
+    /* we add a message handler */
+    bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+    gst_bus_add_watch (bus, bus_handler, app->loop);
+    gst_object_unref (bus);
+
+    /* we add all elements into the pipeline */
+    gst_bin_add_many (GST_BIN (pipeline), source, csp, filter, sink, NULL);
+
+    /* we link the elements together */
+    gst_element_link_many (source, csp, filter, sink, NULL);
+
+    /* Set the pipeline to "playing" state */
+    ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    if (gst_element_get_state (pipeline, NULL, NULL, GST_CLOCK_TIME_NONE)
+            != GST_STATE_CHANGE_SUCCESS)
+    {
+        return NULL;
+    }
+
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+		g_printerr ("Unable to set the pipeline to the playing state.\n");
+		gst_object_unref (pipeline);
+		return NULL;
+	}
+    g_print("play");
+
+    /* Get width and height of video data */
+    pad = gst_element_get_static_pad (sink, "sink");
+    caps = gst_pad_get_current_caps(pad);
+    structure = gst_caps_get_structure(caps, 0);
+    gst_structure_get_int (structure, "width", &app->width);
+    gst_structure_get_int (structure, "height", &app->height);
+    gst_object_unref (pad);
+
+    return pipeline;
+}
+
+int main(int argc, char *argv[]) {
     GLuint shader_program, vbo;
     GLint pos;
     GLFWwindow* window;
 
+    //gstreamer
+    ApplicationData app;
+    GstElement *pipeline;
+
+    // gst init
+    gst_init (&argc, &argv);
+    app.loop = g_main_loop_new (NULL, FALSE);
+    app.buffer = NULL;
+    app.width = 1280;
+    app.height = 1280;
+    app.texture_id = 0;
+
+    g_print("well");
     if (!glfwInit())
         return -1;
+    // g_main_loop_run (app.loop); // gstreamer loop
     
     GLFWmonitor* primary = glfwGetPrimaryMonitor();
     const GLFWvidmode* mode = glfwGetVideoMode(primary);
@@ -170,6 +351,8 @@ int main(void) {
     }
     glfwMakeContextCurrent(window);
 
+    pipeline = create_pipeline (&app);
+
     printf("GL_VERSION  : %s\n", glGetString(GL_VERSION) );
     printf("GL_RENDERER : %s\n", glGetString(GL_RENDERER) );
 
@@ -191,11 +374,19 @@ int main(void) {
         glfwPollEvents();
         
         // texture
-        draw(mode->width, mode->height);
+        draw(mode->width, mode->height, &app);
+        g_usleep (1000/2);
 
         glfwSwapBuffers(window);
     }
     glDeleteBuffers(1, &vbo);
     glfwTerminate();
+
+    /* Release objects before quit */
+    gst_element_set_state (pipeline, GST_STATE_NULL);
+    gst_object_unref (pipeline);
+
+    gst_buffer_unref (app.buffer);
+    g_main_loop_unref (app.loop);
     return EXIT_SUCCESS;
 }
