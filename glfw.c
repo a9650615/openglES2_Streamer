@@ -110,18 +110,20 @@ GLint common_get_shader_program(const char *vertex_shader_source, const char *fr
 }
 
 void draw(float w, float h) {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, w, h);
     
-    unsigned char texDat[10000];
+    unsigned char texDat[(int)(w*h)];
     int i;
-    for (i = 0; i < 10000; ++i)
-        texDat[i] = ((i + (i / 8)) % 2) * 128 + 127;
+    for (i = 0; i < (int)256*256; ++i)
+        texDat[i] = ((i/(int)256)%2==0 ? 0: 255);
     glGenTextures(1, texture);
     glBindTexture(GL_TEXTURE_2D, *texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 8, 8, 0, GL_RGB, GL_UNSIGNED_BYTE, texDat);
+    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_REPEAT);
+    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
