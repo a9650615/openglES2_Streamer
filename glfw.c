@@ -262,10 +262,10 @@ create_pipeline (ApplicationData *app)
     g_signal_connect (G_OBJECT (sink), "handoff",
                         G_CALLBACK(handoff_handler), app);
     caps = gst_caps_new_simple ("video/x-raw",
-                                "format", G_TYPE_STRING, "I420",
+                                "format", G_TYPE_STRING, "RGB", //I420
                                 // "format", G_TYPE_STRING, "RGB16",
-                                // "bpp", G_TYPE_INT, 24,
-                                // "depth", G_TYPE_INT, 24,
+                                "bpp", G_TYPE_INT, 24,
+                                "depth", G_TYPE_INT, 24,
                                 NULL);
     g_object_set (G_OBJECT(filter), "caps", caps, NULL);
     gst_caps_unref(caps);
@@ -318,19 +318,20 @@ int main(int argc, char *argv[]) {
 
     // gst init
     gst_init (&argc, &argv);
-    app.loop = g_main_loop_new (NULL, FALSE);
-    app.buffer = NULL;
-    app.width = 1280;
-    app.height = 1280;
-    app.texture_id = 0;
 
-    g_print("well");
     if (!glfwInit())
         return -1;
     // g_main_loop_run (app.loop); // gstreamer loop
     
     GLFWmonitor* primary = glfwGetPrimaryMonitor();
     const GLFWvidmode* mode = glfwGetVideoMode(primary);
+    
+    app.loop = g_main_loop_new (NULL, FALSE);
+    app.buffer = NULL;
+    app.width = mode->width;
+    app.height = mode->height;
+    app.texture_id = 0;
+    
     glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
     // glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
