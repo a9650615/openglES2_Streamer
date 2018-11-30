@@ -127,51 +127,58 @@ GLint common_get_shader_program(const char *vertex_shader_source, const char *fr
     return shader_program;
 }
 GstMapInfo map; 
-
+int isFirst = 1;
 static void draw(float w, float h, ApplicationData *app) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, w, h);
-    
+
     // unsigned char texDat[(int)(w*h)];
     // int i;
     // for (i = 0; i < (int)256*256; ++i)
     //     texDat[i] = i%600;//((i/(int)256)%2==0 ? 0: 255)
-    glGenTextures(1, texture);
-    glBindTexture(GL_TEXTURE_2D, *texture);
+    
     // glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
 
     // glClearColor (0.0, 0.0, 0.0, 0.0);
   
     // glGenTextures (1, &app->texture_id);
     // glBindTexture (GL_TEXTURE_2D, app->texture_id);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
     // g_static_rw_lock_reader_lock (&app->rwlock);
     if (gst_buffer_map (app->buffer, &map, GST_MAP_READ)) { 
         // gst_util_dump_mem (map.data, map.size);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+        if (isFirst) {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
                     app->width, app->height, 0,
                     GL_RGB, GL_UNSIGNED_BYTE, map.data );
+        } else {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
+                        app->width, app->height,
+                        GL_RGB, GL_UNSIGNED_BYTE, map.data );
+        }
+        
+        isFirst = 0;
         gst_buffer_unmap (app->buffer, &map); 
     }
     // g_static_rw_lock_reader_unlock (&app->rwlock);
     // glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
+    // glBindTexture(GL_TEXTURE_2D, 0);
     glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
 	glEnableVertexAttribArray( g_hVertexLoc );
     glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
 	glEnableVertexAttribArray( g_hVertexTexLoc );
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture[0]);
+    // glBindTexture(GL_TEXTURE_2D, texture[0]);
     glDrawArrays( GL_TRIANGLE_STRIP, 0, sizeof(vertices) );
 
     glDisableVertexAttribArray( g_hVertexLoc );
@@ -388,6 +395,10 @@ int main(int argc, char *argv[]) {
     glEnableVertexAttribArray(pos);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(shader_program);
+
+    // texture
+    glGenTextures(1, texture);
+    glBindTexture(GL_TEXTURE_2D, *texture);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
