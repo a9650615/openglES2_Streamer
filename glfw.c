@@ -239,6 +239,7 @@ static GstElement *
 create_pipeline (ApplicationData *app)
 {
     GstElement *pipeline, *source, *csp, *filter, *sink;
+    GstElement *decoder, *freeze;
     GstBus *bus;
     GstPad *pad;
     GstCaps *caps;
@@ -246,16 +247,33 @@ create_pipeline (ApplicationData *app)
     GstStateChangeReturn ret;
 
     /* Create gstreamer elements */
-    pipeline = gst_pipeline_new ("pipeline"); // pipeline
-    source   = gst_element_factory_make ("videotestsrc",     "source");
+    // pipeline = gst_parse_launch(" filesrc location=\"/home/ubuntu/glfw/test_0.png\" ! pngdec ! imagefreeze ! videoconvert ! fakesink", NULL);
+    pipeline = gst_pipeline_new ("video-player"); // pipeline
+    source   = gst_element_factory_make ("v4l2src",     "video-source"); //videotestsrc
     csp      = gst_element_factory_make ("videoconvert", "csp");
     filter   = gst_element_factory_make ("capsfilter",       "filter");
-    sink     = gst_element_factory_make ("fakesink",         "fakesink");
-    if (!pipeline || !source || !csp || !filter || !sink) {
+    sink     = gst_element_factory_make ("fakesink",         "fakesink"); //fakesink
+
+    //image decoder
+    decoder = gst_element_factory_make ("pngdec", "png-decoder");
+    freeze  = gst_element_factory_make ("imagefreeze", "freeze");
+    if(!pipeline) {
+        g_printerr("pipeline err");
+    }
+    if (!decoder) {
+        g_printerr("decoder err");
+    }
+    if (!freeze) {
+        g_printerr("freeze err");
+    }
+
+    if (!pipeline || !source || !csp || !filter || !sink || !decoder || !freeze) {
         g_printerr ("One element could not be created. Exiting.\n");
         return NULL;
     }
 
+    g_object_set (G_OBJECT (source), "device", "/dev/video4", NULL);
+    // g_object_set (G_OBJECT (source), "location", "./test_0.png", NULL);
     /* we set a property of elements */
     g_object_set (G_OBJECT (sink), "sync", TRUE, NULL);
     g_object_set (G_OBJECT (sink), "signal-handoffs", TRUE, NULL);
