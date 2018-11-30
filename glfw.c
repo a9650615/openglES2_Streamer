@@ -6,6 +6,10 @@
 #include <GLFW/glfw3.h>
 
 #include <gst/gst.h>
+
+#include "FSL/fsl_egl.h"
+#include "FSL/fslutil.h"
+
 // #include "GLES2/gl2.h"
 // #include "GLES2/gl2ext.h"
 // #include "EGL/egl.h"
@@ -153,14 +157,34 @@ static void draw(float w, float h, ApplicationData *app) {
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
     // g_static_rw_lock_reader_lock (&app->rwlock);
-    if (gst_buffer_map (app->buffer, &map, GST_MAP_READ)) { 
-        // gst_util_dump_mem (map.data, map.size);
+    // if (gst_buffer_map (app->buffer, &map, GST_MAP_READ)) { 
+    //     // gst_util_dump_mem (map.data, map.size);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                    app->width, app->height, 0,
-                    GL_RGB, GL_UNSIGNED_BYTE, map.data );
-        gst_buffer_unmap (app->buffer, &map); 
-    }
+    //     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+    //                 app->width, app->height, 0,
+    //                 GL_RGB, GL_UNSIGNED_BYTE, map.data );
+    //     gst_buffer_unmap (app->buffer, &map); 
+    // }
+    Image *image1;
+
+	// allocate space for texture we will use
+	image1 = (Image *) malloc(sizeof(Image));
+	if (image1 == NULL) 
+	{
+		printf("Error allocating space for image");
+		return 0;
+	}	
+    if (LoadBMP( "test_0.bmp", image1))
+	{
+		/* Generate The Texture */
+		glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,image1->sizeX,image1->sizeY,0,GL_RGB,GL_UNSIGNED_BYTE,image1->data);
+		/* Linear Filtering */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		// printf("texture loaded and created successfully");
+
+	}else return 0;
+    
     // g_static_rw_lock_reader_unlock (&app->rwlock);
     // glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
