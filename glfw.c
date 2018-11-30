@@ -130,28 +130,13 @@ GstMapInfo map;
 int isFirst = 1;
 static void draw(float w, float h, ApplicationData *app) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, w, h);
-
-    // unsigned char texDat[(int)(w*h)];
-    // int i;
-    // for (i = 0; i < (int)256*256; ++i)
-    //     texDat[i] = i%600;//((i/(int)256)%2==0 ? 0: 255)
-    
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glClearColor (0.0, 0.0, 0.0, 0.0);
 
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-
-    // glClearColor (0.0, 0.0, 0.0, 0.0);
   
-    // glGenTextures (1, &app->texture_id);
-    // glBindTexture (GL_TEXTURE_2D, app->texture_id);
     // g_static_rw_lock_reader_lock (&app->rwlock);
     if (gst_buffer_map (app->buffer, &map, GST_MAP_READ)) { 
         // gst_util_dump_mem (map.data, map.size);
@@ -171,19 +156,7 @@ static void draw(float w, float h, ApplicationData *app) {
     // g_static_rw_lock_reader_unlock (&app->rwlock);
     // glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-    // glBindTexture(GL_TEXTURE_2D, 0);
-    glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
-	glEnableVertexAttribArray( g_hVertexLoc );
-    glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
-	glEnableVertexAttribArray( g_hVertexTexLoc );
-
-    glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, texture[0]);
-    glDrawArrays( GL_TRIANGLE_STRIP, 0, sizeof(vertices) );
-
-    glDisableVertexAttribArray( g_hVertexLoc );
-    glDisableVertexAttribArray( g_hVertexTexLoc );
-
+    glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
 }
 
 /** GStreamer related ****************************************/
@@ -246,7 +219,6 @@ static GstElement *
 create_pipeline (ApplicationData *app)
 {
     GstElement *pipeline, *source, *csp, *filter, *sink;
-    GstElement *decoder, *freeze;
     GstBus *bus;
     GstPad *pad;
     GstCaps *caps;
@@ -261,20 +233,7 @@ create_pipeline (ApplicationData *app)
     filter   = gst_element_factory_make ("capsfilter",       "filter");
     sink     = gst_element_factory_make ("fakesink",         "fakesink"); //fakesink
 
-    //image decoder
-    decoder = gst_element_factory_make ("pngdec", "png-decoder");
-    freeze  = gst_element_factory_make ("imagefreeze", "freeze");
-    if(!pipeline) {
-        g_printerr("pipeline err");
-    }
-    if (!decoder) {
-        g_printerr("decoder err");
-    }
-    if (!freeze) {
-        g_printerr("freeze err");
-    }
-
-    if (!pipeline || !source || !csp || !filter || !sink || !decoder || !freeze) {
+    if (!pipeline || !source || !csp || !filter || !sink) {
         g_printerr ("One element could not be created. Exiting.\n");
         return NULL;
     }
@@ -399,6 +358,11 @@ int main(int argc, char *argv[]) {
     // texture
     glGenTextures(1, texture);
     glBindTexture(GL_TEXTURE_2D, *texture);
+    glActiveTexture(GL_TEXTURE0);
+    glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
+	glEnableVertexAttribArray( g_hVertexTexLoc );
+    glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
+	glEnableVertexAttribArray( g_hVertexLoc );
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -415,6 +379,8 @@ int main(int argc, char *argv[]) {
     /* Release objects before quit */
     gst_element_set_state (pipeline, GST_STATE_NULL);
     gst_object_unref (pipeline);
+    glDisableVertexAttribArray( g_hVertexLoc );
+    glDisableVertexAttribArray( g_hVertexTexLoc );
 
     gst_buffer_unref (app.buffer);
     g_main_loop_unref (app.loop);
