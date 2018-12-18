@@ -130,7 +130,8 @@ GLint common_get_shader_program(const char *vertex_shader_source, const char *fr
     glDeleteShader(fragment_shader);
     return shader_program;
 }
-GstMapInfo map; 
+GstMapInfo map;
+Image *image1;
 
 static void draw(float w, float h, ApplicationData *app) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -140,8 +141,7 @@ static void draw(float w, float h, ApplicationData *app) {
     // int i;
     // for (i = 0; i < (int)256*256; ++i)
     //     texDat[i] = i%600;//((i/(int)256)%2==0 ? 0: 255)
-    glGenTextures(1, texture);
-    glBindTexture(GL_TEXTURE_2D, *texture);
+
     // glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 256, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texDat);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -165,16 +165,15 @@ static void draw(float w, float h, ApplicationData *app) {
     //                 GL_RGB, GL_UNSIGNED_BYTE, map.data );
     //     gst_buffer_unmap (app->buffer, &map); 
     // }
-    Image *image1;
+    // Image *image1;
 
 	// allocate space for texture we will use
-	image1 = (Image *) malloc(sizeof(Image));
+	// image1 = (Image *) malloc(sizeof(Image));
 	if (image1 == NULL) 
 	{
 		printf("Error allocating space for image");
 		return 0;
-	}	
-    if (LoadBMP( "test_0.bmp", image1))
+	} else
 	{
 		/* Generate The Texture */
 		glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,image1->sizeX,image1->sizeY,0,GL_RGB,GL_UNSIGNED_BYTE,image1->data);
@@ -183,23 +182,21 @@ static void draw(float w, float h, ApplicationData *app) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		// printf("texture loaded and created successfully");
 
-	}else return 0;
+	}
+    // else return 0;
     
     // g_static_rw_lock_reader_unlock (&app->rwlock);
     // glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
-	glEnableVertexAttribArray( g_hVertexLoc );
-    glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
-	glEnableVertexAttribArray( g_hVertexTexLoc );
+    // glBindTexture(GL_TEXTURE_2D, 0);
+    // glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
+	// glEnableVertexAttribArray( g_hVertexLoc );
+    // glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
+	// glEnableVertexAttribArray( g_hVertexTexLoc );
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture[0]);
-    glDrawArrays( GL_TRIANGLE_STRIP, 0, sizeof(vertices) );
-
-    glDisableVertexAttribArray( g_hVertexLoc );
-    glDisableVertexAttribArray( g_hVertexTexLoc );
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, texture[0]);
+    glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
 
 }
 
@@ -386,6 +383,7 @@ int main(int argc, char *argv[]) {
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, mode->width, mode->height);
+    printf("SIZE : %d %d\n", mode->width, mode->height );
 
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -394,6 +392,19 @@ int main(int argc, char *argv[]) {
     glEnableVertexAttribArray(pos);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(shader_program);
+
+    // texture
+    glGenTextures(1, texture);
+    glBindTexture(GL_TEXTURE_2D, *texture);
+    glActiveTexture(GL_TEXTURE0);
+    glVertexAttribPointer( g_hVertexTexLoc, 2, GL_FLOAT, 0, 0, VertexTexCoords );
+ 	glEnableVertexAttribArray( g_hVertexTexLoc );
+    glVertexAttribPointer( g_hVertexLoc, 3, GL_FLOAT, 0, 0, vertices );
+ 	glEnableVertexAttribArray( g_hVertexLoc );
+
+    // load image
+    image1 = (Image *) malloc(sizeof(Image));
+    LoadBMP( "test_0.bmp", image1);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -410,6 +421,8 @@ int main(int argc, char *argv[]) {
     /* Release objects before quit */
     gst_element_set_state (pipeline, GST_STATE_NULL);
     gst_object_unref (pipeline);
+    glDisableVertexAttribArray( g_hVertexLoc );
+    glDisableVertexAttribArray( g_hVertexTexLoc );
 
     gst_buffer_unref (app.buffer);
     g_main_loop_unref (app.loop);
